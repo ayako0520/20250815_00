@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Space Invaders Mobile</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
+  <style>body { margin: 0; background: #000; overflow: hidden; }</style>
+</head>
+<body>
+<script>
+const POOL = Array(100).fill(null); let poolIdx = 0;
+class Bullet {
+  constructor() { this.active = false; this.r = 4; }
+  spawn(x, y, vy, c) { this.x = x; this.y = y; this.vy = vy; this.c = c; this.active = true; }
+  upd() { if (!this.active) return; this.y += this.vy; if (this.y < -10 || this.y > height + 10) this.active = false; }
+  draw() { if (this.active) { fill(this.c); ellipse(this.x, this.y, this.r * 2); } }
+}
+class Game {
+  constructor() { this.reset(); }
+  reset() {
+    this.player = { x: width / 2, y: height - 40, w: 50, h: 20, cd: 0 };
+    this.enemies = [];
+    this.dir = 1; this.spd = 1; this.t = 0; this.score = 0; this.over = false;
+    this.makeEnemies();
+  }
+  makeEnemies() {
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 9; c++) {
+        this.enemies.push({ x: 60 + c * 60, y: 60 + r * 50, w: 35, h: 25 });
+      }
+    }
+  }
+  shoot(x, y, vy, c) {
+    POOL[poolIdx = (poolIdx + 1) % POOL.length] ??= new Bullet();
+    POOL[poolIdx].spawn(x, y, vy, c);
+  }
+  update() {
+    if (this.over) return;
+    this.player.y = height - 40;
+    if (keyIsDown(LEFT_ARROW)) this.player.x = max(this.player.x - 6, this.player.w / 2);
+    if (keyIsDown(RIGHT_ARROW)) this.player.x = min(this.player.x + 6, width - this.player.w / 2);
+    if (keyIsDown(32) && this.player.cd-- < 0) {
+      this.shoot(this.player.x, this.player.y - 10, -8, 'yellow'); this.player.cd = 15;
+    }
+
+    const edgeHit = this.enemies.some(e =>
+      (e.x + e.w / 2 >= width - 10 && this.dir === 1) ||
+      (e.x - e.w / 2 <= 10 && this.dir === -1)
+    );
+    if (edgeHit) { this.dir *= -1; this.enemies.forEach(e => e.y += 20); }
+    this.enemies.forEach(e => e.x += this.spd * this.dir);
+
+    if (++this.t % 60 === 0 && this.enemies.length) {
+      const s = random(this.enemies); this.shoot(s.x, s.y + 15, 5, 'cyan');
+    }
+
+    for (let b of POOL) {
+      if (!b?.active) continue;
+      b.upd();
+      if (b.vy < 0) {
+        for (let i = this.enemies.length - 1; i >= 0; i--) {
+          const e = this.enemies[i];
+          if (abs(b.x - e.x) < e.w / 2 && abs(b.y - e.y) < e.h / 2) {
+            this.enemies.splice(i, 1); b.active = false; this.score += 10; break;
+          }
+        }
+      } else {
+        if (abs(b.x - this.player.x) < this.player.w / 2 &&
+            abs(b.y - this.player.y) < this.player.h / 2) {
+          this.over = true; b.active = false;
+        }
+      }
+    }
+
+    if (!this.enemies.length) { this.spd += 0.5; this.makeEnemies(); }
+  }
+
+  draw() {
+    background(0); rectMode(CENTER);
+    fill(0, 255, 0);
+    rect(this.player.x, this.player.y, this.player.w, this.player.h);
+    this.enemies.forEach(e => { fill(255, 0, 0); rect(e.x, e.y, e.w, e.h); });
+    POOL.forEach(b => b?.draw());
+    textAlign(LEFT, TOP); fill(255);
+    text(`Score: ${this.score}`, 10, 10);
+    if (this.over) {
+      textAlign(CENTER, CENTER);
+      textSize(32); text('Game Over', width / 2, height / 2);
+    }
+  }
+}
+let g;
+function setup() { createCanvas(min(windowWidth, 600), windowHeight * 0.9); g = new Game(); textFont('monospace'); textSize(18); }
+function draw() { g.update(); g.draw(); }
+function mousePressed() {
+  if (mouseY > height * 0.8) {
+    if (mouseX < width / 3) g.player.x -= 6;
+    else if (mouseX > 2 * width / 3) g.player.x += 6;
+    else g.shoot(g.player.x, g.player.y - 10, -8, 'yellow');
+  }
+}
+</script>
+</body>
+</html>
